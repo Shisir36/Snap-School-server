@@ -11,13 +11,22 @@ app.use(cors());
 app.use(express.json());
 
 
-app.get("/", (req, res) => {
-    res.send("data is running ")
-})
+const verifyJWT = (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (!authorization) {
+        return res.status(401).send({ error: true, message: 'unauthorized access' });
+    }
+    const token = authorization.split(' ')[1];
 
-app.listen(port, () => {
-    console.log(`data is running on port ${port}`);
-})
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(401).send({ error: true, message: 'unauthorized access' })
+        }
+        req.decoded = decoded;
+        next();
+    })
+}
+
 
 // mongodb
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.nbenc92.mongodb.net/?retryWrites=true&w=majority`;
@@ -58,7 +67,7 @@ async function run() {
         });
         // users
         // verifyJWT, verifyAdmin,
-        app.get('/users', async (req, res) => {
+        app.get('/users', verifyJWT, async (req, res) => {
             const result = await usersCollection.find().toArray();
             res.send(result);
         });
@@ -75,6 +84,18 @@ async function run() {
             const result = await usersCollection.insertOne(user);
             res.send(result);
         });
+        app.get('/users/admin/:email', verifyJWT, async (req, res) => {
+            const email = req.params.email;
+
+            if (req.decoded.email !== email) {
+                res.send({ admin: false })
+            }
+
+            const query = { email: email }
+            const user = await usersCollection.findOne(query);
+            const result = { admin: user?.role === 'admin' }
+            res.send(result);
+        })
         app.patch('/users/admin/:id', async (req, res) => {
             const id = req.params.id;
             console.log(id);
@@ -89,7 +110,7 @@ async function run() {
             res.send(result);
 
         })
-        app.get('/classesCart', async (req, res) => {
+        app.get('/classesCart',  async (req, res) => {
             const email = req.query.email;
 
             if (!email) {
@@ -157,7 +178,13 @@ async function run() {
     }
 }
 run().catch(console.dir);
+app.get("/", (req, res) => {
+    res.send("data is running ")
+})
 
+app.listen(port, () => {
+    console.log(`data is running on port ${port}`);
+})
 
 // snap-school
 // YbtOVoumYK22coYC
