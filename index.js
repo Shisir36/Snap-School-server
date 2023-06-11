@@ -4,6 +4,7 @@ const cors = require("cors");
 const jwt = require('jsonwebtoken');
 require("dotenv").config();
 const port = process.env.PORT || 5000;
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 // middleware 
@@ -50,11 +51,28 @@ async function run() {
         const usersCollection = client.db("snap-school").collection("users");
         app.post('/jwt', (req, res) => {
             const user = req.body;
-            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '7d' })
 
             res.send({ token })
         })
-
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email;
+            const query = { email: email }
+            const user = await usersCollection.findOne(query);
+            if (user?.role !== 'admin') {
+                return res.status(403).send({ error: true, message: 'forbidden message' });
+            }
+            next();
+        }
+        const verifyInstructor = async (req, res, next) => {
+            const email = req.decoded.email;
+            const query = { email: email }
+            const user = await usersCollection.findOne(query);
+            if (user?.role !== 'instructor') {
+                return res.status(403).send({ error: true, message: 'forbidden message' });
+            }
+            next();
+        }
         app.get('/classes', async (req, res) => {
             const cursor = classesCollections.find();
             const result = await cursor.toArray();
@@ -65,9 +83,8 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result);
         });
-        // users
-        // verifyJWT, verifyAdmin,
-        app.get('/users', verifyJWT, async (req, res) => {
+
+        app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
             const result = await usersCollection.find().toArray();
             res.send(result);
         });
@@ -84,6 +101,29 @@ async function run() {
             const result = await usersCollection.insertOne(user);
             res.send(result);
         });
+        /*******************/
+        app.get('/users/instructor/:email', verifyJWT, async (req, res) => {
+            const email = req.params.email;
+            if (req.decoded.email !== email) {
+                res.send({ instructor: false })
+            }
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            const result = { instructor: user?.role === 'instructor' };
+            res.send(result);
+        });
+        app.patch('/users/instructor/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    role: 'instructor'
+                },
+            };
+            const result = await usersCollection.updateOne(filter, updateDoc);
+            res.send(result)
+        });
+        /****************/
         app.get('/users/admin/:email', verifyJWT, async (req, res) => {
             const email = req.params.email;
 
@@ -110,12 +150,16 @@ async function run() {
             res.send(result);
 
         })
-        app.get('/classesCart',  async (req, res) => {
+        app.get('/classesCart', async (req, res) => {
             const email = req.query.email;
 
             if (!email) {
                 res.send([]);
             }
+            // const decodedEmail = req.decoded.email;
+            // if (email !== decodedEmail) {
+            //   return res.status(403).send({ error: true, message: 'porviden access' })
+            // }      
             const query = { email: email };
             const result = await classCartCollections.find(query).toArray();
             res.send(result);
@@ -137,6 +181,15 @@ async function run() {
             }
             const result = await classesCollections.find(query).toArray();
             res.send(result);
+        });
+        app.get('/myclasses', async (req, res) => {
+            let query = {};
+            if (req.query?.email) {
+                query = { email: req.query.email };
+            }
+
+            const result = await classesCollections.find(query).toArray();
+            res.send(result)
         });
         app.patch('/classes/:id', async (req, res) => {
             const id = req.params.id;
@@ -169,6 +222,21 @@ async function run() {
             const result = await classesCollections.findOneAndUpdate(filter, updateDoc);
             res.send(result);
         })
+
+       // Payment***********
+        app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+            const { price } = req.body;
+            const amount = parseInt(price * 100);
+            const paymentIntent = await stripe.paymentIntents.create({
+              amount: amount,
+              currency: 'usd',
+              payment_method_types: ['card']
+            });
+      
+            res.send({
+              clientSecret: paymentIntent.client_secret
+            })
+          })
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
