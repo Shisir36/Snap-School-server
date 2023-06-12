@@ -49,6 +49,7 @@ async function run() {
         const instructorsCollections = client.db("snap-school").collection('instructors');
         const classCartCollections = client.db("snap-school").collection('classCart');
         const usersCollection = client.db("snap-school").collection("users");
+        const paymentCollection = client.db('snap-school').collection('payments');
         app.post('/jwt', (req, res) => {
             const user = req.body;
             const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '7d' })
@@ -169,6 +170,12 @@ async function run() {
             const result = await classCartCollections.insertOne(addedClass)
             res.send(result)
         })
+        app.get("/myClassCart/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await classCartCollections.findOne(query);
+            res.send(result); // Modify this line accordingly
+        });
         app.post('/classes', async (req, res) => {
             const newClass = req.body
             const result = await classesCollections.insertOne(newClass);
@@ -182,6 +189,14 @@ async function run() {
             const result = await classesCollections.find(query).toArray();
             res.send(result);
         });
+        app.get('/classes/enrollment', async (req, res) => {
+            try {
+                const classes = await classesCollections.find().sort({ totalEnrolledStudents: -1 }).toArray();
+                res.json(classes);
+            } catch (error) {
+                res.status(500).json({ error: 'Failed to fetch classes' });
+            }
+        });        
         app.get('/myclasses', async (req, res) => {
             let query = {};
             if (req.query?.email) {
@@ -223,20 +238,60 @@ async function run() {
             res.send(result);
         })
 
-       // Payment***********
+        // Payment***********
         app.post('/create-payment-intent', verifyJWT, async (req, res) => {
             const { price } = req.body;
             const amount = parseInt(price * 100);
             const paymentIntent = await stripe.paymentIntents.create({
-              amount: amount,
-              currency: 'usd',
-              payment_method_types: ['card']
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
             });
-      
+
             res.send({
-              clientSecret: paymentIntent.client_secret
+                clientSecret: paymentIntent.client_secret
             })
-          })
+        })
+        app.post('/payments', verifyJWT, async (req, res) => {
+            const payment = req.body;
+            const insertResult = await paymentCollection.insertOne(payment);
+            const classItemId = payment.cartItems;
+
+            const query = { _id: new ObjectId(classItemId) };
+            const deleteResult = await classCartCollections.deleteOne(query);
+            const ClassesId = payment.classItems
+            const classId = new ObjectId(ClassesId);
+
+            // Check if the class document exists and if the totalEnrolledStudents field exists
+            const classDocument = await classesCollections.findOne({ _id: classId });
+
+            if (!classDocument || classDocument.totalEnrolledStudents === undefined) {
+                // Set totalEnrolledStudents to 0 if the class document is null or totalEnrolledStudents doesn't exist
+                await classesCollections.updateOne(
+                    { _id: classId },
+                    { $set: { totalEnrolledStudents: 0 } }
+                );
+            }
+
+            // Increment totalEnrolledStudents field by 1 and decrement availableSeats by 1
+            const updateResult = await classesCollections.findOneAndUpdate(
+                { _id: classId },
+                { $inc: { availableSeats: -1, totalEnrolledStudents: 1 } },
+                { returnOriginal: false }
+            );
+
+            res.send({ insertResult, deleteResult, updatedClass: updateResult });
+        });
+
+        app.get('/enrolledclasses', async (req, res) => {
+            let query = {};
+            if (req.query?.email) {
+                query = { email: req.query.email };
+            }
+
+            const result = await paymentCollection.find(query).toArray();
+            res.send(result)
+        });
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
