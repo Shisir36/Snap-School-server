@@ -44,7 +44,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         const classesCollections = client.db("snap-school").collection('classes');
         const classCartCollections = client.db("snap-school").collection('classCart');
         const usersCollection = client.db("snap-school").collection("users");
