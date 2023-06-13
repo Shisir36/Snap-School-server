@@ -100,7 +100,7 @@ async function run() {
             const result = await usersCollection.insertOne(user);
             res.send(result);
         });
-        /*******************/
+        /*********For Instructor**********/
         app.get('/users/instructor/:email', verifyJWT, async (req, res) => {
             const email = req.params.email;
             if (req.decoded.email !== email) {
@@ -123,6 +123,7 @@ async function run() {
             res.send(result)
         });
         /****************/
+        /**********For Admin***********/ 
         app.get('/users/admin/:email', verifyJWT, async (req, res) => {
             const email = req.params.email;
 
@@ -149,6 +150,22 @@ async function run() {
             res.send(result);
 
         })
+        /******************************/
+        
+        /**************For Student***************/
+        app.get('/users/student/:email', verifyJWT, async (req, res) => {
+            const email = req.params.email;
+            if (req.decoded.email !== email) {
+                res.send({ student: false })
+            }
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            const result = { student: user?.role === 'student' };
+            res.send(result);
+        });
+        
+
+        /*****************************************/ 
         app.get('/classesCart', async (req, res) => {
             const email = req.query.email;
 
