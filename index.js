@@ -46,7 +46,6 @@ async function run() {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
         const classesCollections = client.db("snap-school").collection('classes');
-        const instructorsCollections = client.db("snap-school").collection('instructors');
         const classCartCollections = client.db("snap-school").collection('classCart');
         const usersCollection = client.db("snap-school").collection("users");
         const paymentCollection = client.db('snap-school').collection('payments');
@@ -79,20 +78,14 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result);
         });
-        app.get('/instructors', async (req, res) => {
-            const cursor = instructorsCollections.find();
-            const result = await cursor.toArray();
-            res.send(result);
-        });
-
         app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
             const result = await usersCollection.find().toArray();
             res.send(result);
         });
-        app.get("/users/instructors", async(req, res) =>{
-          const query = {role: "instructor"}
-          const result = await usersCollection.find(query).toArray()
-          res.send(result)
+        app.get("/users/instructors", async (req, res) => {
+            const query = { role: "instructor" }
+            const result = await usersCollection.find(query).toArray()
+            res.send(result)
         })
         app.post('/users', async (req, res) => {
             const user = req.body;
@@ -175,12 +168,12 @@ async function run() {
             const result = await classCartCollections.insertOne(addedClass)
             res.send(result)
         })
-        app.delete('/classesCart/:id', async(req, res) => {
+        app.delete('/classesCart/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id : new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
             const result = await classCartCollections.deleteOne(query);
             res.send(result);
-    
+
         })
         app.get("/myClassCart/:id", async (req, res) => {
             const id = req.params.id;
@@ -208,7 +201,7 @@ async function run() {
             } catch (error) {
                 res.status(500).json({ error: 'Failed to fetch classes' });
             }
-        });        
+        });
         app.get('/myclasses', async (req, res) => {
             let query = {};
             if (req.query?.email) {
@@ -294,6 +287,20 @@ async function run() {
 
             res.send({ insertResult, deleteResult, updatedClass: updateResult });
         });
+
+        app.get('/payments', async (req, res) => {
+            const { email } = req.query;
+
+            try {
+                const paymentHistory = await paymentCollection.find({ email }).sort({ date: -1 }).toArray();
+                res.send({ paymentHistory });
+            } catch (error) {
+                console.error('Error fetching payment history:', error);
+                res.status(500).send({ error: 'An error occurred while fetching payment history' });
+            }
+        });
+
+
 
         app.get('/enrolledclasses', async (req, res) => {
             let query = {};
