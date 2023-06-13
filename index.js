@@ -89,6 +89,11 @@ async function run() {
             const result = await usersCollection.find().toArray();
             res.send(result);
         });
+        app.get("/users/instructors", async(req, res) =>{
+          const query = {role: "instructor"}
+          const result = await usersCollection.find(query).toArray()
+          res.send(result)
+        })
         app.post('/users', async (req, res) => {
             const user = req.body;
             const query = { email: user.email }
@@ -169,6 +174,13 @@ async function run() {
             const addedClass = req.body
             const result = await classCartCollections.insertOne(addedClass)
             res.send(result)
+        })
+        app.delete('/classesCart/:id', async(req, res) => {
+            const id = req.params.id;
+            const query = {_id : new ObjectId(id)}
+            const result = await classCartCollections.deleteOne(query);
+            res.send(result);
+    
         })
         app.get("/myClassCart/:id", async (req, res) => {
             const id = req.params.id;
