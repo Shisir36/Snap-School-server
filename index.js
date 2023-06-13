@@ -64,15 +64,15 @@ async function run() {
             }
             next();
         }
-        const verifyInstructor = async (req, res, next) => {
-            const email = req.decoded.email;
-            const query = { email: email }
-            const user = await usersCollection.findOne(query);
-            if (user?.role !== 'instructor') {
-                return res.status(403).send({ error: true, message: 'forbidden message' });
-            }
-            next();
-        }
+        // const verifyInstructor = async (req, res, next) => {
+        //     const email = req.decoded.email;
+        //     const query = { email: email }
+        //     const user = await usersCollection.findOne(query);
+        //     if (user?.role !== 'instructor') {
+        //         return res.status(403).send({ error: true, message: 'forbidden message' });
+        //     }
+        //     next();
+        // }
         app.get('/classes', async (req, res) => {
             const cursor = classesCollections.find();
             const result = await cursor.toArray();
@@ -231,7 +231,6 @@ async function run() {
         app.patch('/classes/:id', async (req, res) => {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
-
             let updateDoc;
 
             if (req.body.action === 'approve') {
